@@ -1,4 +1,4 @@
 # quick_scanner has NO runtime dependencies (standard library only).
 # These are for development/testing.
-pytest>=8,<10
+pytest>=9.1.1,<10
 ruff>=0.6
