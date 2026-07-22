@@ -5,4 +5,4 @@
 # imports it, so tests and lint run without the brittle scraping dependency.
 # Install requirements.txt separately when you want to do a live run.
 pytest>=8,<10
-ruff>=0.6
+ruff>=0.15.22
