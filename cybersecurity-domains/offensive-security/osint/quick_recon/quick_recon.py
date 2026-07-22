@@ -18,6 +18,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from backends import BackendError, build_backend
 from recon_lib import run_recon
 from report import Report
 from safety import RateLimiter, Scope, ScopeError, confirm
@@ -25,26 +26,13 @@ from safety import RateLimiter, Scope, ScopeError, confirm
 log = logging.getLogger("quick_recon")
 
 
-def _real_search(pause: float):
-    """Return a SearchFn backed by the googlesearch library.
-
-    Imported lazily so that --dry-run and --help work (and unit tests run)
-    without the optional scraping dependency installed.
-    """
+def _real_search(args):
+    """Return the configured SearchFn, or None to abort on config error."""
     try:
-        from googlesearch import search as google_search
-    except ImportError:  # pragma: no cover - depends on optional dep
-        log.error(
-            "The 'googlesearch' library is not installed. "
-            "Install requirements first: pip install -r requirements.txt"
-        )
-        raise
-
-    def search(query: str):
-        # num/stop bound the result volume; pause spaces out Google requests.
-        return google_search(query, num=30, stop=60, pause=pause)
-
-    return search
+        return build_backend(args.backend, pause=args.pause)
+    except BackendError as exc:
+        log.error("Backend error: %s", exc)
+        return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,6 +64,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--yes",
         action="store_true",
         help="Skip the interactive confirmation prompt (for automation).",
+    )
+    p.add_argument(
+        "--backend",
+        choices=["scrape", "api"],
+        default="scrape",
+        help="Search backend: 'scrape' (default, no setup, brittle) or 'api' "
+        "(Google Custom Search JSON API; needs GOOGLE_API_KEY and "
+        "GOOGLE_CSE_ID env vars). Default: scrape",
     )
     p.add_argument(
         "--pause",
@@ -170,7 +166,12 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
     )
     limiter = RateLimiter(min_interval=args.pause)
-    search = None if args.dry_run else _real_search(args.pause)
+    if args.dry_run:
+        search = None
+    else:
+        search = _real_search(args)
+        if search is None:
+            return 4  # backend misconfiguration (e.g. missing API creds)
 
     try:
         run_recon(

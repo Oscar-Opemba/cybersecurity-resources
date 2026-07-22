@@ -9,6 +9,11 @@
 # deliberate decision for the operator.
 google==2.0.3
 
-# Removed from the original list (unused by any code path): requests,
-# termcolor, txtorcon, colorama, bs4, StringGenerator, pysocks. The txtorcon
-# and pysocks entries pulled in a Tor stack that was never wired up.
+# Used only by the optional --backend api path (Google Custom Search JSON
+# API). Not needed for the default scrape backend, but small and widely
+# installed, so pinned here for convenience.
+requests>=2.31,<3
+
+# Removed from the original list (unused by any code path): termcolor,
+# txtorcon, colorama, bs4, StringGenerator, pysocks. The txtorcon and pysocks
+# entries pulled in a Tor stack that was never wired up.

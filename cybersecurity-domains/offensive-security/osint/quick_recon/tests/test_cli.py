@@ -43,7 +43,7 @@ def test_dry_run_makes_no_network_call(scope_file, monkeypatch, capsys):
     # If _real_search were ever called in dry-run, this would blow up.
     monkeypatch.setattr(
         quick_recon, "_real_search",
-        lambda pause: (_ for _ in ()).throw(AssertionError("network in dry-run!")),
+        lambda args: (_ for _ in ()).throw(AssertionError("network in dry-run!")),
     )
     rc = quick_recon.main(
         ["example.com", "--scope-file", scope_file, "--yes", "--dry-run"]
@@ -56,7 +56,7 @@ def test_dry_run_makes_no_network_call(scope_file, monkeypatch, capsys):
 def test_in_scope_run_with_mocked_search(scope_file, monkeypatch, capsys):
     monkeypatch.setattr(
         quick_recon, "_real_search",
-        lambda pause: (lambda q: ["https://found.example.com/x"]),
+        lambda args: (lambda q: ["https://found.example.com/x"]),
     )
     rc = quick_recon.main(
         ["example.com", "--scope-file", scope_file, "--yes",
@@ -70,9 +70,20 @@ def test_in_scope_run_with_mocked_search(scope_file, monkeypatch, capsys):
 def test_authorized_flag_allows_run_without_scope(monkeypatch, capsys):
     monkeypatch.setattr(
         quick_recon, "_real_search",
-        lambda pause: (lambda q: []),
+        lambda args: (lambda q: []),
     )
     rc = quick_recon.main(
         ["example.com", "--i-am-authorized", "--yes", "--pause", "0"]
     )
     assert rc == 0
+
+
+def test_api_backend_missing_creds_returns_4(scope_file, monkeypatch):
+    # No GOOGLE_API_KEY / GOOGLE_CSE_ID -> backend build fails -> exit 4.
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_CSE_ID", raising=False)
+    rc = quick_recon.main(
+        ["example.com", "--scope-file", scope_file, "--yes",
+         "--backend", "api", "--pause", "0"]
+    )
+    assert rc == 4

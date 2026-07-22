@@ -17,12 +17,27 @@ retries, structured logging, machine-readable reports, tests).
 
 ## What it actually does
 
-It **scrapes Google** via the third-party `google` library. That mechanism is
-inherently brittle — Google actively blocks scraping, so live runs may return
-partial results or get rate-limited. The hardening in this repo makes runs
-**safe and predictable**, not the scraping reliable. For a dependable pipeline
-you would swap in a supported search API; that changes behaviour and is left as
-a deliberate operator decision.
+It queries **Google's index** for a fixed set of dorks. Two backends are
+available (`--backend`):
+
+- **`scrape`** (default) — scrapes Google via the third-party `google`
+  library. Zero setup, but **brittle**: Google actively blocks scraping, so
+  live runs may return partial results or get rate-limited.
+- **`api`** — the official [Google Programmable Search / Custom Search JSON
+  API](https://developers.google.com/custom-search/v1/overview). **Reliable
+  and sanctioned**, but you must supply an API key and a Search-Engine ID
+  (`cx`). Set them as environment variables — they are never logged or written
+  to disk:
+
+  ```bash
+  export GOOGLE_API_KEY=...      # from Google Cloud console
+  export GOOGLE_CSE_ID=...       # your Programmable Search Engine "cx" id
+  python3 quick_recon.py example.com --scope-file scope.txt --backend api
+  ```
+
+Either backend queries Google — the **target host is never contacted** by this
+tool. Neither changes what recon is performed; the API backend just makes it
+dependable enough for an engagement pipeline.
 
 ## Setup (≤5 commands)
 
@@ -53,6 +68,7 @@ Key flags:
 |------|---------|
 | `--scope-file FILE` | Allow-list of authorized domains (required unless `--i-am-authorized`). |
 | `--i-am-authorized` | Run without a scope file; you still confirm the target. |
+| `--backend {scrape,api}` | Search backend (see above). Default `scrape`. |
 | `--dry-run` | Print the exact queries and exit — **no network**. |
 | `--yes` | Skip the interactive confirmation (automation). |
 | `--pause N` | Seconds between Google requests (rate limit, default 2.0). |
@@ -100,13 +116,14 @@ findings:   0
 
 ```bash
 pip install -r requirements-dev.txt
-python3 -m pytest -q      # 42 tests, all network mocked — no live calls
+python3 -m pytest -q      # 51 tests, all network mocked — no live calls
 ruff check .              # lint
 ```
 
 The code is split so logic is testable without a network:
 
 - `safety.py` — scope, rate limiting, confirmation (pure/local).
+- `backends.py` — the `scrape` and `api` search backends (the one seam).
 - `recon_lib.py` — the checks (as data) and the run loop; search is injected.
 - `report.py` — the result model (text / JSON / CSV).
 - `quick_recon.py` — the CLI wiring it together.

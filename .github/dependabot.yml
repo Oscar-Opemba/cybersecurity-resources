@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Keep the quick_recon tool's Python deps patched.
+  - package-ecosystem: "pip"
+    directory: "/cybersecurity-domains/offensive-security/osint/quick_recon"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+
+  # Keep GitHub Actions pinned versions current.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"

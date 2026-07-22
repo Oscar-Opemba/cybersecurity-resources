@@ -34,3 +34,7 @@ jobs:
         run: ruff check .
       - name: Unit tests (network mocked)
         run: python -m pytest -q
+      - name: Dependency vulnerability audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
