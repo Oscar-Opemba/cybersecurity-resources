@@ -4,5 +4,5 @@
 # NOT pulled in here — the test suite mocks all network activity and never
 # imports it, so tests and lint run without the brittle scraping dependency.
 # Install requirements.txt separately when you want to do a live run.
-pytest>=8,<10
+pytest>=9.1.1,<10
 ruff>=0.6
