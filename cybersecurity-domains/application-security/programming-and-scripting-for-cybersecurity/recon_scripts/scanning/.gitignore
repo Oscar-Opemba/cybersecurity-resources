@@ -1,0 +1,9 @@
+# Local engagement artifacts — never commit these.
+scan_scope.txt
+scope.txt
+*.report
+report.json
+report.csv
+__pycache__/
+.pytest_cache/
+.ruff_cache/

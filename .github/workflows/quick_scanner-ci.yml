@@ -1,0 +1,40 @@
+name: quick_scanner CI
+
+# Lints and unit-tests the quick_scanner tool. All tests mock the network
+# (connect + resolver) — nothing here scans a live host.
+
+on:
+  push:
+    paths:
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/quick_scanner.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/scanner_lib.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/tests/**"
+      - ".github/workflows/quick_scanner-ci.yml"
+  pull_request:
+    paths:
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/quick_scanner.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/scanner_lib.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/tests/**"
+      - ".github/workflows/quick_scanner-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Lint (ruff)
+        run: ruff check quick_scanner.py scanner_lib.py tests/
+      - name: Unit tests (network mocked)
+        run: python -m pytest -q

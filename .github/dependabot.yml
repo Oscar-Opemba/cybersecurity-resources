@@ -9,6 +9,15 @@ updates:
     labels:
       - "dependencies"
 
+  # Keep the quick_scanner tool's dev deps patched (no runtime deps).
+  - package-ecosystem: "pip"
+    directory: "/cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+
   # Keep GitHub Actions pinned versions current.
   - package-ecosystem: "github-actions"
     directory: "/"
