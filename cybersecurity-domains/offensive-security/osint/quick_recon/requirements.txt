@@ -1,8 +1,14 @@
-requests
-google
-termcolor
-txtorcon
-colorama
-bs4
-StringGenerator
-pysocks
+# Runtime dependency: provides `from googlesearch import search` with the
+# num/stop/pause API this tool uses. Pinned for reproducibility.
+#
+# CAVEAT: `google` is effectively abandoned and Google actively blocks
+# scraping, so live runs are inherently unreliable. This is a known
+# limitation of the upstream mechanism, flagged in the README — the
+# hardening here makes runs SAFE and PREDICTABLE, not the scraping reliable.
+# Swapping to a supported search API would change behaviour and is left as a
+# deliberate decision for the operator.
+google==2.0.3
+
+# Removed from the original list (unused by any code path): requests,
+# termcolor, txtorcon, colorama, bs4, StringGenerator, pysocks. The txtorcon
+# and pysocks entries pulled in a Tor stack that was never wired up.

@@ -1,0 +1,13 @@
+# quick_recon scope file — the explicit allow-list of authorized targets.
+#
+# One domain per line. A target is in scope if it exactly matches, or is a
+# sub-domain of, an entry below. There is NO wildcard expansion and NO
+# implicit "everything" — if a domain is not listed, the tool refuses to run
+# against it.
+#
+# Copy this to scope.txt and edit for your engagement. scope.txt is
+# git-ignored so you never commit a client's scope by accident.
+#
+# Examples (REMOVE these and add your authorized targets):
+example.com
+example.org

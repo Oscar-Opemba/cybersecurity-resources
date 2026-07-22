@@ -1,0 +1,9 @@
+# Local engagement artifacts — never commit these.
+scope.txt
+quick_recon.config
+*.report
+report.json
+report.csv
+.google-cookie
+__pycache__/
+.pytest_cache/

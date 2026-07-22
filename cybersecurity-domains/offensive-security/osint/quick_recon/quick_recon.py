@@ -1,139 +1,206 @@
 #!/usr/bin/env python3
-# A script to perform a quick OSINT recon for a given domains
-# This is an example and work in progress
+"""quick_recon — safe-by-default OSINT dork recon for an authorized target.
 
-import os , sys , time , requests , random
-from googlesearch import search
-from termcolor import colored, cprint
-from http import cookiejar
-from urllib.parse import urlparse
-from plugins import pasting
+Originally by Adnane X Tebbaa (https://github.com/adnane-x-tebbaa/quick_recon).
+Hardened for authorized engagement use: explicit scope enforcement, dry-run
+preview, rate limiting, retries, structured logging and machine-readable
+reports.
 
-Subdomains = []
+AUTHORIZED USE ONLY. Run this only against domains you own or are explicitly
+authorized to test. See LEGAL.md at the repository root.
+"""
 
-def SubdomainFilter(URL):
-    Parsed = urlparse(URL); Scheme = Parsed.scheme; Host = Parsed.netloc; URL = Scheme + "://" + Host + "/"
-    if URL not in Subdomains:
-        print(URL); Subdomains.append(URL)
+from __future__ import annotations
 
-if os.path.exists("alpha.txt"):
-  print("")
-  Qupdate = requests.get('https://raw.githubusercontent.com/The-Art-of-Hacking/h4cker/osint/quick_recon/qrecon_update.txt') #Quantom
-  Qupdate.status_code
-  if Qupdate.status_code == 200:
-   print(colored ('Cheking Update...' ,'white'))
-   print(colored(Qupdate.text , 'green'))
-   time.sleep(3) #
-  elif Qupdate.status_code == 404:
-   print(colored ('Cheking Update...' ,'white'))
-   print(colored ('Update Available ' ,'red'))
-   print(colored ('See https://github.com/The-Art-of-Hacking/h4cker/tree/master/cybersecurity-domains/offensive-security/osint' ,'red'))
-   print(colored ('Resuming...' ,'red'))
-   print("")
-  time.sleep(3) #
+import argparse
+import logging
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
-  f = open('alpha.txt', 'r')
-  alpha = f.read()
-  print(colored (alpha,'yellow'))
+from recon_lib import run_recon
+from report import Report
+from safety import RateLimiter, Scope, ScopeError, confirm
+
+log = logging.getLogger("quick_recon")
 
 
-else:
-  print("")
-  print(colored ('Please Run the quick_recon Script in the Main Directory' ,'red'))
-  print(colored ('First: cd quick_recon ' ,'red'))
-  print(colored ('Then : python3 quick_recon.py' ,'red'))
-  print(colored ('Exiting...' ,'red'))
-  time.sleep(5)
-  exit()
+def _real_search(pause: float):
+    """Return a SearchFn backed by the googlesearch library.
 
-banner1 = """
-Quick OSINT Recon of a given domain
-̿з=(◕_◕)=ε
-                              """
-print (banner1)
+    Imported lazily so that --dry-run and --help work (and unit tests run)
+    without the optional scraping dependency installed.
+    """
+    try:
+        from googlesearch import search as google_search
+    except ImportError:  # pragma: no cover - depends on optional dep
+        log.error(
+            "The 'googlesearch' library is not installed. "
+            "Install requirements first: pip install -r requirements.txt"
+        )
+        raise
 
-#--------------------------------------------------------------------------------#
-class BlockAll(cookiejar.CookiePolicy):
-    return_ok = set_ok = domain_return_ok = path_return_ok = lambda self, *args, **kwargs: False
-    netscape = True
-    rfc2965 = hide_cookie2 = False
-TLD = ["com","com.tw","co.in"]
-beta  = random.choice(TLD)
-s = requests.Session()
-s.cookies.set_policy(BlockAll())
+    def search(query: str):
+        # num/stop bound the result volume; pause spaces out Google requests.
+        return google_search(query, num=30, stop=60, pause=pause)
 
-#--------------------------------------------------------------------------------#
-
-key  = input (colored('[+] Set Target (site.com) : ', 'white' ))#Key
-file = open("quick_recon.config", "w")
-file.write(key)
-file.close()
-#V2
-#V2
-print("")
-print(colored ('[>] Looking For Subdomains...' ,'green'))
-query = "site:" + key + " -www." + key                            #SubTech1
-for gamma in search(query, tld=beta, num=30 , stop=60 , pause=2):
-    SubdomainFilter(URL=gamma)
-query = "site:*." + key                                           #SubTech2
-for gamma in search(query, tld=beta, num=30 , stop=60 , pause=2):
-    SubdomainFilter(URL=gamma)
-print("")
-
-if os.path.exists(".google-cookie"):
- os.remove(".google-cookie")
-
-print(colored ('[>] Looking For Sub-Subdomains...' ,'green'))
-query = "site:*.*." + key
-for gamma in search(query, tld=beta, num=30 , stop=60 , pause=2):
-    SubdomainFilter(URL=gamma)
-print("")
-
-if os.path.exists(".google-cookie"):
- os.remove(".google-cookie")
+    return search
 
 
-print(colored ('[>] Looking For Login/Signup Pages...' ,'green'))
-query = "inurl:login site:" + key                                        #LogTech1
-for gamma in search(query, tld=beta, num=30 , stop=60 , pause=2):
-    print("" + gamma)
-query = "site:" + key + " inurl:signup | inurl:register | intitle:Signup" #LogTech2
-for gamma in search(query, tld=beta, num=30 , stop=60 , pause=2):
-    print("" + gamma)
-print ("")
-if os.path.exists(".google-cookie"):
- os.remove(".google-cookie")
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="quick_recon",
+        description="Safe-by-default OSINT dork recon for an AUTHORIZED target.",
+        epilog="Authorized use only. See LEGAL.md.",
+    )
+    p.add_argument("target", nargs="?", help="Target domain, e.g. example.com")
+    p.add_argument(
+        "--scope-file",
+        required=False,
+        help="Path to a scope allow-list (one domain per line). "
+        "REQUIRED unless --i-am-authorized is given.",
+    )
+    p.add_argument(
+        "--i-am-authorized",
+        action="store_true",
+        help="Assert authorization without a scope file. The target still "
+        "must be confirmed. Use only when you cannot supply a scope file.",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print exactly what would be queried and exit without any "
+        "network activity.",
+    )
+    p.add_argument(
+        "--yes",
+        action="store_true",
+        help="Skip the interactive confirmation prompt (for automation).",
+    )
+    p.add_argument(
+        "--pause",
+        type=float,
+        default=2.0,
+        help="Seconds between Google requests (rate limit). Default: 2.0",
+    )
+    p.add_argument(
+        "--retries",
+        type=int,
+        default=2,
+        help="Retries per check on transient failure. Default: 2",
+    )
+    p.add_argument(
+        "--output",
+        help="Write the report to this file (format from --format).",
+    )
+    p.add_argument(
+        "--format",
+        choices=["text", "json", "csv"],
+        default="text",
+        help="Report format. Default: text",
+    )
+    p.add_argument(
+        "-v", "--verbose", action="store_true", help="Verbose (DEBUG) logging."
+    )
+    return p
 
-# Sleeping for 60s to Avoid Google Block
-print(colored ('[!] 20s Sleep to avoid Google Block' ,'yellow'))
-time.sleep(21) # ; )
-print(colored ('[!] Switching Google TLDs...' ,'yellow'))
-TLD = ["co.ma","dz","ru","ca"]
-zolo  = random.choice(TLD)
-print("")
-#ok
 
-print(colored ('[>] Looking For Directory Listing...' ,'green')) #DirListing
-query = "site:" + key + " intitle:index of"
-for gamma in search(query, tld=zolo, num=10 , stop=60 , pause=2):
-    print("" + gamma)
-print ("")
-if os.path.exists(".google-cookie"):
- os.remove(".google-cookie")
-
-print(colored ('[>] Looking For Public Exposed Documents...' ,'green')) #Docs
-query = "site:" + key + " ext:doc | ext:docx | ext:odt | ext:pdf | ext:rtf | ext:sxw | ext:psw | ext:ppt | ext:pptx | ext:pps | ext:csv"
-for gamma in search(query, tld=zolo, num=30 , stop=60 , pause=2):
-    print("" + gamma)
-print ("")
-if os.path.exists(".google-cookie"):
- os.remove(".google-cookie")
+def resolve_scope(args) -> Scope | None:
+    """Return the active Scope, or None when --i-am-authorized is used."""
+    if args.scope_file:
+        return Scope.from_file(args.scope_file)
+    if args.i_am_authorized:
+        return None
+    raise ScopeError(
+        "no scope provided. Pass --scope-file <file> (recommended) or "
+        "--i-am-authorized to assert authorization explicitly."
+    )
 
 
-print(colored ('[>] Looking For WordPress Entries...' ,'green')) #WP
-query = "site:" + key + " inurl:wp- | inurl:wp-content | inurl:plugins | inurl:uploads | inurl:themes | inurl:download"
-for gamma in search(query, tld=zolo, num=30 , stop=60 , pause=2):
-    print("" + gamma)
-print ("")
-if os.path.exists(".google-cookie"):
- os.remove(".google-cookie")
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+
+    if not args.target:
+        log.error("No target given. Example: quick_recon.py example.com "
+                  "--scope-file scope.txt")
+        return 2
+
+    # --- Scope enforcement (safety rail) ---------------------------------
+    try:
+        scope = resolve_scope(args)
+    except ScopeError as exc:
+        log.error("Scope error: %s", exc)
+        return 2
+
+    if scope is not None:
+        try:
+            target = scope.check(args.target)
+        except ScopeError as exc:
+            log.error("Refusing to run: %s", exc)
+            return 3
+        scope_domains = scope.domains
+    else:
+        from safety import normalize_domain
+        try:
+            target = normalize_domain(args.target)
+        except ValueError as exc:
+            log.error("Invalid target: %s", exc)
+            return 2
+        scope_domains = [f"{target} (asserted via --i-am-authorized)"]
+        log.warning("Running without a scope file against %s", target)
+
+    # --- Confirmation gate (safety rail) ---------------------------------
+    action = "PREVIEW (dry-run)" if args.dry_run else "run live OSINT queries"
+    if not confirm(
+        f"About to {action} against '{target}'. Are you authorized?",
+        assume_yes=args.yes,
+    ):
+        log.error("Aborted by operator.")
+        return 1
+
+    # --- Run --------------------------------------------------------------
+    report = Report(
+        target=target,
+        scope=scope_domains,
+        started_at=datetime.now(timezone.utc).isoformat(),
+        dry_run=args.dry_run,
+    )
+    limiter = RateLimiter(min_interval=args.pause)
+    search = None if args.dry_run else _real_search(args.pause)
+
+    try:
+        run_recon(
+            target,
+            search,
+            report,
+            limiter=limiter,
+            dry_run=args.dry_run,
+            retries=args.retries,
+        )
+    except KeyboardInterrupt:
+        log.warning("Interrupted by user — writing partial report.")
+    finally:
+        report.finished_at = datetime.now(timezone.utc).isoformat()
+
+    # --- Output -----------------------------------------------------------
+    rendered = {
+        "text": report.to_text,
+        "json": report.to_json,
+        "csv": report.to_csv,
+    }[args.format]()
+
+    if args.output:
+        Path(args.output).write_text(rendered, encoding="utf-8")
+        log.info("Report written to %s", args.output)
+    else:
+        print(rendered)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

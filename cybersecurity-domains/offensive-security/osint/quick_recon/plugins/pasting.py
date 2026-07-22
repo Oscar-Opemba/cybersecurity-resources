@@ -1,34 +1,46 @@
 #!/usr/bin/env python3
-# A script to perform a quick OSINT recon for a given domains
-# This is an example and work in progress
+"""Paste-site recon plugin.
 
-import os
+Superseded by the ``paste_sites`` check in ``recon_lib.CHECKS`` (which the
+main tool runs automatically). This module is kept as a minimal, importable
+example of a stand-alone plugin.
+
+The original version executed at import time, wrote the target to a
+world-readable ``quick_recon.config`` file and then ``os.remove()``'d it —
+a race condition and information leak. That behaviour has been removed; the
+plugin is now a pure function you pass a target and a search function to.
+"""
+
+from __future__ import annotations
+
 import sys
-import time
-import requests
-import random
-from googlesearch import search
-from termcolor import colored, cprint
-from http import cookiejar
+from pathlib import Path
+from typing import Iterable
 
-TLD = ["co.ma","dz","ru","ca"]
-zolo  = random.choice(TLD)
+# Allow running this file directly for a quick demo.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-X = requests.get('https://www.google.com/webhp?ei=1') # : /
-X.status_code
-if X.status_code == 200:
- time.sleep(5)
+from recon_lib import Check, normalize_result  # noqa: E402
 
-f = open('quick_recon.config', 'r')
-alpha = f.read()
-key = alpha
-time.sleep(5)
-print(colored ('[>] Looking in Pasting Sites...' ,'green')) #Pasting Sites e.g : PasteBin...
-query = "site:pastebin.com | site:hastebin.com | site:carbon.now.sh " + key
-for gamma in search(query, tld=zolo, num=30 , stop=60 , pause=2):
-    print("" + gamma)
-print ("")
-if os.path.exists(".google-cookie"):
- os.remove(".google-cookie")
-os.remove("quick_recon.config")
-print(colored ('[>] Done...Happy Hunting' ,'green'))
+PASTE_CHECK = Check(
+    "paste_sites",
+    "Paste-site mentions",
+    "site:pastebin.com | site:hastebin.com | site:carbon.now.sh {target}",
+)
+
+
+def find_paste_mentions(target: str, search) -> list[str]:
+    """Return de-duplicated paste-site result URLs for ``target``.
+
+    ``search`` is a callable ``query -> iterable[str]`` (inject the real
+    googlesearch at runtime, or a fake in tests). No network here.
+    """
+    results: Iterable[str] = search(PASTE_CHECK.query(target))
+    seen: set[str] = set()
+    out: list[str] = []
+    for url in results:
+        norm = normalize_result(url)
+        if norm not in seen:
+            seen.add(norm)
+            out.append(norm)
+    return out
