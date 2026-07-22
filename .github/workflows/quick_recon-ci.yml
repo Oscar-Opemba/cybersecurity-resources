@@ -1,0 +1,36 @@
+name: quick_recon CI
+
+# Lints and unit-tests the quick_recon tool. All tests mock the network —
+# nothing here touches a live external target.
+
+on:
+  push:
+    paths:
+      - "cybersecurity-domains/offensive-security/osint/quick_recon/**"
+      - ".github/workflows/quick_recon-ci.yml"
+  pull_request:
+    paths:
+      - "cybersecurity-domains/offensive-security/osint/quick_recon/**"
+      - ".github/workflows/quick_recon-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cybersecurity-domains/offensive-security/osint/quick_recon
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Unit tests (network mocked)
+        run: python -m pytest -q
