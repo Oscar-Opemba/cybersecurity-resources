@@ -1,19 +1,24 @@
-name: quick_scanner CI
+name: scanning tools CI
 
-# Lints and unit-tests the quick_scanner tool. All tests mock the network
-# (connect + resolver) — nothing here scans a live host.
+# Lints and unit-tests the hardened scanning tools (quick_scanner,
+# basic_ping_sweep). All tests mock the network (connect / resolver / pinger)
+# — nothing here scans or pings a live host.
 
 on:
   push:
     paths:
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/quick_scanner.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/scanner_lib.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/basic_ping_sweep.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/sweep_lib.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/tests/**"
       - ".github/workflows/quick_scanner-ci.yml"
   pull_request:
     paths:
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/quick_scanner.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/scanner_lib.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/basic_ping_sweep.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/sweep_lib.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/tests/**"
       - ".github/workflows/quick_scanner-ci.yml"
 
@@ -35,6 +40,6 @@ jobs:
       - name: Install dev dependencies
         run: pip install -r requirements-dev.txt
       - name: Lint (ruff)
-        run: ruff check quick_scanner.py scanner_lib.py tests/
+        run: ruff check quick_scanner.py scanner_lib.py basic_ping_sweep.py sweep_lib.py tests/
       - name: Unit tests (network mocked)
         run: python -m pytest -q

@@ -265,8 +265,8 @@ def run_scan(
     ports: list[int],
     report: ScanReport,
     *,
-    connect=default_connect,
-    resolver=default_resolver,
+    connect=None,
+    resolver=None,
     concurrency: int = 16,
     timeout: float = 1.0,
     rate_limiter: RateLimiter | None = None,
@@ -275,8 +275,14 @@ def run_scan(
     """Scan ``ports`` on ``host`` into ``report``.
 
     Concurrency is clamped to [1, MAX_CONCURRENCY]. In dry-run mode nothing
-    is resolved or connected — the plan is recorded and returned.
+    is resolved or connected — the plan is recorded and returned. ``connect``
+    and ``resolver`` default to the module-level implementations resolved at
+    call time (so they stay monkeypatchable in tests).
     """
+    if connect is None:
+        connect = default_connect
+    if resolver is None:
+        resolver = default_resolver
     report.ports_scanned = len(ports)
     if dry_run:
         report.errors.append(
