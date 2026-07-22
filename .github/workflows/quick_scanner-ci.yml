@@ -13,6 +13,8 @@ on:
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/sweep_lib.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/python_nmap.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/nmap_lib.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/simple_scapy_scan.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/scapscan.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/tests/**"
       - ".github/workflows/quick_scanner-ci.yml"
   pull_request:
@@ -23,6 +25,8 @@ on:
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/sweep_lib.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/python_nmap.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/nmap_lib.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/simple_scapy_scan.py"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/scapscan.py"
       - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/scanning/tests/**"
       - ".github/workflows/quick_scanner-ci.yml"
 
@@ -44,6 +48,6 @@ jobs:
       - name: Install dev dependencies
         run: pip install -r requirements-dev.txt
       - name: Lint (ruff)
-        run: ruff check quick_scanner.py scanner_lib.py basic_ping_sweep.py sweep_lib.py python_nmap.py nmap_lib.py tests/
+        run: ruff check quick_scanner.py scanner_lib.py basic_ping_sweep.py sweep_lib.py python_nmap.py nmap_lib.py simple_scapy_scan.py scapscan.py tests/
       - name: Unit tests (network mocked)
         run: python -m pytest -q
