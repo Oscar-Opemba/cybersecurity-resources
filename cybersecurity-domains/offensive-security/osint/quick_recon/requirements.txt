@@ -7,7 +7,7 @@
 # hardening here makes runs SAFE and PREDICTABLE, not the scraping reliable.
 # Swapping to a supported search API would change behaviour and is left as a
 # deliberate decision for the operator.
-google==2.0.3
+google==3.0.0
 
 # Used only by the optional --backend api path (Google Custom Search JSON
 # API). Not needed for the default scrape backend, but small and widely
