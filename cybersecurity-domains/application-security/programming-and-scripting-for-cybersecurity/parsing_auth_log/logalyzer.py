@@ -52,11 +52,12 @@ if __name__ == "__main__":
 
     # parse logs
     LOGS = ParseLogs.ParseLogs(log)
-    if LOGS is None: sys.exit(1)
+    if LOGS is None:
+        sys.exit(1)
 
     # validate the user
     if options.user:
-        if not options.user in LOGS:
+        if options.user not in LOGS:
             print(f"[-] User \'{options.user}\' is not present in the logs.")
             sys.exit(1)
 

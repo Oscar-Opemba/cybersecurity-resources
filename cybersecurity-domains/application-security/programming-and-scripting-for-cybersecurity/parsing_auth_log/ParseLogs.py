@@ -48,6 +48,10 @@ def ParseUsr(line):
         usr = re.search(r'USER=\w+', line)
     elif "for invalid user" in line:
         usr = re.search(r'(\buser\s)(\w+)', line)
+    elif "Failed password for" in line:
+        # plain failed login (no "invalid user"): attribute to the username
+        # instead of bucketing it under None
+        usr = re.search(r'(\bfor\s)(\w+)', line)
     if usr is not None:
         return usr.group(2)
 
@@ -79,11 +83,12 @@ def ParseLogs(log):
     # initialize the dictionary
     logs = {}
 
-    # parse the log
+    # parse the log (read the file into `content`; do not shadow `log`, the
+    # path, so the error message below always reports the real filename)
     f = None
     try:
-        f = gzip.open(log, 'r') if '.gz' in log else open(log, 'r')
-        log = f.read()
+        f = gzip.open(log, 'rt') if '.gz' in log else open(log, 'r')
+        content = f.read()
     except Exception as e:
         print('[-] Error opening \'%s\': %s' % (log, e))
         return None
@@ -91,7 +96,7 @@ def ParseLogs(log):
         if f is not None:
             f.close()
 
-    for line in log.split('\n'):
+    for line in content.split('\n'):
         # match a login
         if "Accepted password for" in line:
             usr = ParseUsr(line)

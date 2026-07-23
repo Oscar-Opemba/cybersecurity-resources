@@ -1,0 +1,40 @@
+name: log-analysis tools CI
+
+# Lints and unit-tests the hardened defensive log-analysis tools. Tests use
+# local strings / temp files only — no network.
+
+on:
+  push:
+    paths:
+      - "cybersecurity-domains/defensive-security/threat-hunting/**"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/parsing_auth_log/**"
+      - ".github/workflows/log-analysis-tools-ci.yml"
+  pull_request:
+    paths:
+      - "cybersecurity-domains/defensive-security/threat-hunting/**"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/parsing_auth_log/**"
+      - ".github/workflows/log-analysis-tools-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dir:
+          - cybersecurity-domains/defensive-security/threat-hunting
+          - cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/parsing_auth_log
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dev tools
+        run: pip install "pytest>=8,<10" "ruff>=0.6"
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Unit tests
+        run: python -m pytest -q
