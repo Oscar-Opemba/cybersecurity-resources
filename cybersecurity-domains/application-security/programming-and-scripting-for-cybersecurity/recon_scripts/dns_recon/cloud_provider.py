@@ -1,71 +1,115 @@
-'''
-This script takes a domain as input and returns the IP address of the domain, the organization 
-owning the IP address, and whether the IP address belongs to a major cloud provider.
-Author: Omar Santos @santosomar
-'''
+#!/usr/bin/env python3
+"""cloud_provider — resolve a domain and guess whether its IP is a major cloud.
 
-# Import the necessary modules
-import socket
-import whois
+Hardened from the original teaching demo: a CLI argument instead of input(),
+injectable resolver + WHOIS lookups (so the logic is unit-testable without
+network), structured output, and correct error handling. The original caught
+``whois.WhoisException`` which python-whois does not define — a bare failure
+there would itself have raised.
 
-def get_domain_ip(domain):
-    '''
-    get domain IP address
-    :param domain: domain
-    :return: ip_address
-    '''
+See LEGAL.md at the repository root.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import sys
+
+log = logging.getLogger("cloud_provider")
+
+CLOUD_PROVIDERS = [
+    "Amazon", "AWS", "Azure", "Microsoft", "Google", "Digital Ocean",
+    "DigitalOcean", "Alibaba", "Oracle", "Cloudflare",
+]
+
+
+def _default_resolver(domain: str) -> str | None:
+    import socket
+
     try:
-        ip_address = socket.gethostbyname(domain)
-        return ip_address
+        return socket.gethostbyname(domain)
     except socket.gaierror:
         return None
 
-def get_whois_info(ip_address):
-    '''
-    get whois information
-    :param ip_address: ip_address
-    :return: whois information
-    '''
+
+def _default_whois_org(ip_address: str) -> str | None:
     try:
-        w = whois.whois(ip_address)
-        return w
-    except whois.WhoisException:
+        import whois
+    except ImportError:  # pragma: no cover - optional dep
         return None
+    try:
+        info = whois.whois(ip_address)
+    except Exception:  # noqa: BLE001 - python-whois raises many ad-hoc types
+        return None
+    org = getattr(info, "org", None)
+    return str(org) if org else None
 
-def is_major_cloud_provider(whois_info):
-    '''
-    check if the IP address belongs to a major cloud provider
-    :param whois_info: whois_info
-    :return: True or False
-    '''
-    cloud_providers = ["Amazon", "Azure", "Microsoft", "Google", "Digital Ocean", "Alibaba", "Oracle"]
-    for provider in cloud_providers:
-        if provider.lower() in whois_info.lower():
-            return True
-    return False
 
-def main(domain):
-    '''
-    main function
-    :param domain: domain
-    :return: None
-    '''
-    ip_address = get_domain_ip(domain)
-    if ip_address:
-        print(f"The IP address of {domain} is {ip_address}")
-        whois_info = get_whois_info(ip_address)
-        if whois_info and whois_info.org:
-            print(f"The organization owning the IP is: {whois_info.org}")
-            if is_major_cloud_provider(str(whois_info.org)):
-                print(f"The IP address belongs to a major cloud provider.")
-            else:
-                print(f"The IP address does not belong to a known major cloud provider.")
+def is_major_cloud_provider(org: str) -> bool:
+    org_l = (org or "").lower()
+    return any(p.lower() in org_l for p in CLOUD_PROVIDERS)
+
+
+def analyze(domain: str, *, resolver=None, whois_org=None) -> dict:
+    """Return a structured result for ``domain``. Lookups are injectable."""
+    resolver = resolver or _default_resolver
+    whois_org = whois_org or _default_whois_org
+
+    result = {"domain": domain, "ip": None, "org": None, "cloud_provider": None}
+    ip = resolver(domain)
+    if not ip:
+        return result
+    result["ip"] = ip
+    org = whois_org(ip)
+    if org:
+        result["org"] = org
+        result["cloud_provider"] = is_major_cloud_provider(org)
+    return result
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="cloud_provider",
+        description="Resolve a domain and check if its IP is a major cloud.",
+        epilog="Authorized use only. See LEGAL.md.",
+    )
+    p.add_argument("domain", nargs="?", help="Domain, e.g. example.com")
+    p.add_argument("--format", choices=["text", "json"], default="text",
+                   help="Report format. Default: text")
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s")
+
+    if not args.domain:
+        log.error("No domain given. Example: cloud_provider.py example.com")
+        return 2
+
+    result = analyze(args.domain)
+
+    if args.format == "json":
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if not result["ip"]:
+        print(f"Could not find IP address for {args.domain}.")
+        return 0
+    print(f"The IP address of {args.domain} is {result['ip']}")
+    if result["org"]:
+        print(f"The organization owning the IP is: {result['org']}")
+        if result["cloud_provider"]:
+            print("The IP address belongs to a major cloud provider.")
         else:
-            print(f"Could not retrieve WHOIS information.")
+            print("The IP address does not belong to a known major cloud provider.")
     else:
-        print(f"Could not find IP address for {domain}.")
+        print("Could not retrieve WHOIS information.")
+    return 0
+
 
 if __name__ == "__main__":
-    domain = input("""Cloud Checker example by Omar Santos.
-Please enter a domain: """)
-    main(domain)
+    sys.exit(main())

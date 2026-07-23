@@ -1,0 +1,44 @@
+name: recon tools CI
+
+# Lints and unit-tests the hardened recon tools (sensitive file scanner, DNS
+# recon, certificate checks). All tests inject/mock network + filesystem — no
+# live DNS, WHOIS, TLS, or external hosts are touched.
+
+on:
+  push:
+    paths:
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/finding_sensitive_files/**"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/dns_recon/**"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/certificate_information/**"
+      - ".github/workflows/recon-tools-ci.yml"
+  pull_request:
+    paths:
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/finding_sensitive_files/**"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/dns_recon/**"
+      - "cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/certificate_information/**"
+      - ".github/workflows/recon-tools-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dir:
+          - finding_sensitive_files
+          - dns_recon
+          - certificate_information
+    defaults:
+      run:
+        working-directory: cybersecurity-domains/application-security/programming-and-scripting-for-cybersecurity/recon_scripts/${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dev tools
+        run: pip install "pytest>=8,<10" "ruff>=0.6"
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Unit tests (network/filesystem mocked)
+        run: python -m pytest -q
